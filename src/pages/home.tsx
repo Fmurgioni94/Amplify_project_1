@@ -9,8 +9,6 @@ import axios from 'axios';
 
 function Home() {
     const [text, setText] = useState("");
-    const apiUrl = 'https://q2be7o9gz2.execute-api.eu-west-2.amazonaws.com/cat/'
-
     
 
     const handleButtonClick = async() => {
