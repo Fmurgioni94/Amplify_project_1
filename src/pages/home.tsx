@@ -15,7 +15,7 @@ function Home() {
         console.log("Input Text:", text);
         const options = {
           method: 'POST',
-          url: 'http://cdkcat-chesh-c2hapxe5isia-1442475508.eu-west-2.elb.amazonaws.com/message',
+          url :  'https://i1duln7306.execute-api.eu-west-2.amazonaws.com/prod/cat/message',
           headers: {'Content-Type': 'application/json'},
           data: {text: text}
         };
