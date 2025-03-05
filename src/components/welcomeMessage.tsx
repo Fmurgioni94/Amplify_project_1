@@ -5,9 +5,9 @@ type WelcomeMessageProps = {
   };
   
   function WelcomeMessage({
-    message = "Welcome to our website!", // Default message
+    message = "Welcome to my website!", // Default message
     color = "text-blue-500", // Default color
-    emoji = "👋",
+    emoji = "👋😎",
   }: WelcomeMessageProps) {
     return <p className={`text-xl font-semibold ${color}`}>{emoji} {message}</p>;
   }

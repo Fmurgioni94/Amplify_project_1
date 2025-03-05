@@ -1,13 +1,19 @@
 type ButtonProps = {
     label: string; // Button text
     onClick: () => void; // Function to execute when clicked
+    disabled?: boolean; // Disable the button
   };
   
-  function Button({ label, onClick }: ButtonProps) {
+  function Button({ label, onClick, disabled = false }: ButtonProps) {
     return (
       <button
-        className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition"
+        className={`px-4 py-2 rounded-lg transition ${
+          disabled 
+            ? 'bg-gray-400 cursor-not-allowed' 
+            : 'bg-blue-500 hover:bg-blue-600 text-white'
+        }`}
         onClick={onClick}
+        disabled={disabled}
       >
         {label}
       </button>
