@@ -4,9 +4,9 @@ type MessageFromTheCatProps = {
 
 function MessageFromTheCat({ message }: MessageFromTheCatProps) {
   return (
-    <div className="w-full min-h-[200px] p-8 bg-gray-50 rounded-lg border border-gray-200 shadow-sm">
+    <div className="w-full min-h-[200px] p-8 bg-gray-50 rounded-lg border border-gray-200 shadow-sm box-wrapper">
       {message ? (
-        <p className="text-lg text-gray-700 text-center italic">
+        <p className="text-lg text-gray-700 text-left italic">
           "{message}"
         </p>
       ) : (

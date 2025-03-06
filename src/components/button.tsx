@@ -7,7 +7,7 @@ type ButtonProps = {
   function Button({ label, onClick, disabled = false }: ButtonProps) {
     return (
       <button
-        className={`px-4 py-2 rounded-lg transition ${
+        className={`px-4 py-2 rounded-lg transition line-border ${
           disabled 
             ? 'bg-gray-400 cursor-not-allowed' 
             : 'bg-blue-500 hover:bg-blue-600 text-white'

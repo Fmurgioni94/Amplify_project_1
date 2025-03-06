@@ -44,12 +44,11 @@ function Home() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation bar */}
-      <nav className="bg-white shadow-sm">
+
         <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
           <Title text="Goal Breaking Component" size="lg" />
           
         </div>
-      </nav>
 
       {/* Main content */}
       <main className="max-w-4xl mx-auto px-4 py-8">
@@ -57,13 +56,15 @@ function Home() {
           <WelcomeMessage />
           
           <div className="flex flex-col space-y-16">
-            <TextInput value={text} onChange={setText} />
-            <div className="flex justify-center">
-              <Button
-                label={isLoading ? "Sending..." : "Send request"}
-                onClick={handleButtonClick}
-                disabled={isLoading || !text.trim()}
-              />
+            <div className="container">
+              <TextInput value={text} onChange={setText} />
+              <div className="flex justify-center">
+                <Button
+                  label={isLoading ? "Sending..." : "Send request"}
+                  onClick={handleButtonClick}
+                  disabled={isLoading || !text.trim()}
+                />
+              </div>
             </div>
 
             {/* Cat Message Display */}
