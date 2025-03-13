@@ -5,7 +5,7 @@ import TextInput from "../components/input_bar.tsx";
 import Button from "../components/button.tsx";
 import MessageFromTheCat from "../components/message_from_the_cat.tsx";
 import { useAuthenticator } from '@aws-amplify/ui-react';
-import axios from 'axios';
+// import axios from 'axios';
 
 function Home() {
     const [text, setText] = useState("");
@@ -13,22 +13,44 @@ function Home() {
     const [catMessage, setCatMessage] = useState("");
     const { signOut } = useAuthenticator();
 
+    let socket: WebSocket | null = null;
+    socket = new WebSocket("wss://1e2wwsnu5d.execute-api.eu-west-2.amazonaws.com/production/");
+    // socket.onopen = () => {
+    // };
+
+
     const handleButtonClick = async() => {
       if (!text.trim()) return; 
       setIsLoading(true);
       console.log("Input Text:", text);
-      const options = {
-        method: 'POST',
-        url :  'https://i1duln7306.execute-api.eu-west-2.amazonaws.com/prod/cat/message',
-        headers: {'Content-Type': 'application/json'},
-        data: {text: text}
-      };
+
+      const message = {
+        "action" : "startTask",
+        "body" : text
+      }
+
+      // const options = {
+      //   method: 'POST',
+      //   url :  'https://i1duln7306.execute-api.eu-west-2.amazonaws.com/prod/cat/message',
+      //   headers: {'Content-Type': 'application/json'},
+      //   data: {text: text}
+      // };
         
       try {
         // Make the request to the API Gateway
-        const response = await axios.request(options); // Adjust as needed for your API
-        console.log('Response from the cat:', response.data);
-        setCatMessage(response.data.message);
+        // const response = await axios.request(options); // Adjust as needed for your API
+        // console.log('Response from the cat:', response.data);
+        // setCatMessage(response.data.message);
+        // setText("");
+        socket.send(JSON.stringify(message))
+        socket.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          console.log('Message from server:', event.data);
+          const result: any = data.result;
+          const message: string | undefined = result?.text ;
+
+          setCatMessage(message ?? "");
+        };
         setText("");
   
       // Optionally, do something with the response, e.g., update state
