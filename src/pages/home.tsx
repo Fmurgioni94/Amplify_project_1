@@ -141,37 +141,48 @@ function Home() {
     };
     
     return (
-        <div className="min-h-screen bg-gray-50">
-            <div className="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+        <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100">
+            <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center border-b border-gray-200 bg-white shadow-sm">
                 <Title text="Goal Breaking Component" size="lg" />
             </div>
 
-            <main className="max-w-4xl mx-auto px-4 py-8">
-                <div className="bg-white rounded-xl shadow-sm p-6 space-y-8">
-                    <WelcomeMessage />
+            <main className="max-w-5xl mx-auto px-6 py-12">
+                <div className="bg-white rounded-xl shadow-lg p-8 space-y-10">
+                    <WelcomeMessage 
+                        message="Enter your goal and I'll help you break it down into manageable tasks!"
+                        color="text-gray-700"
+                    />
                     
                     <div className="flex flex-col space-y-16">
-                        <div className="container">
-                            <TextInput value={text} onChange={setText} />
-                            <div className="flex flex-col items-center gap-4">
-                                <Button
-                                    label={isLoading ? "Processing..." : "Send request"}
-                                    onClick={handleButtonClick}
-                                    disabled={isLoading || !text.trim() || !socket || socket.readyState !== WebSocket.OPEN}
-                                />
-                                {isLoading && (
-                                    <div className="w-64">
-                                        <LoadingBar progress={loadingProgress} />
-                                    </div>
-                                )}
+                        <div className="flex flex-col items-center gap-8 p-6 bg-gray-50 rounded-xl border border-gray-100">
+                            <div className="w-full max-w-2xl flex gap-4 items-start">
+                                <div className="flex-grow">
+                                    <TextInput value={text} onChange={setText} />
+                                </div>
+                                <div className="flex flex-col items-center gap-4">
+                                    <Button
+                                        label={isLoading ? "Processing..." : "Break down my goal"}
+                                        onClick={handleButtonClick}
+                                        disabled={isLoading || !text.trim() || !socket || socket.readyState !== WebSocket.OPEN}
+                                    />
+                                    {isLoading && (
+                                        <div className="w-80">
+                                            <LoadingBar progress={loadingProgress} />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
-                        <MessageFromTheCat message={catMessage} />
+                        {roadmapData && (
+                            <div className="border border-gray-200 rounded-xl p-6 bg-gray-50 mt-16 mb-12">
+                                <DynamicRoadmap tasksData={roadmapData} />
+                            </div>
+                        )}
                         
-                        {roadmapData && <DynamicRoadmap tasksData={roadmapData} />}
-                        
-                        <Button label="Sign out" onClick={signOut} />
+                        <div className="flex justify-center">
+                            <Button label="Sign out" onClick={signOut} />
+                        </div>
                     </div>
                 </div>
             </main>
