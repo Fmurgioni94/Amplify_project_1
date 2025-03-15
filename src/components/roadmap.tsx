@@ -9,6 +9,7 @@ import ReactFlow, {
   ReactFlowProvider
 } from "reactflow";
 import * as dagre from "dagre";
+import LoadingBar from "./LoadingBar";
 import 'reactflow/dist/style.css';
 
 interface Task {
@@ -92,6 +93,8 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [layout, setLayout] = useState<"TB" | "LR">("TB");
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
 
   const handleTaskComplete = (taskId: string) => {
     setCompletedTasks(prev => {
@@ -106,85 +109,102 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
   };
 
   useEffect(() => {
-    const generatedNodes: Node[] = [];
-    const generatedEdges: Edge[] = [];
+    const generateGraph = async () => {
+      setIsLoading(true);
+      setLoadingProgress(0);
 
-    Object.keys(tasksData).forEach((key) => {
-      const task = tasksData[key];
-      const isCompleted = completedTasks.has(task.id.toString());
-      
-      generatedNodes.push({
-        id: task.id.toString(),
-        data: {
-          label: (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ 
-                fontWeight: 'bold', 
-                marginBottom: '4px',
-                fontSize: '14px',
-                color: '#333',
-                textDecoration: isCompleted ? 'line-through' : 'none'
-              }}>
-                {task.name_of_the_task}
-              </div>
-              <div style={{
-                color: '#666',
-                fontSize: '12px',
-                marginBottom: '8px'
-              }}>
-                Duration: {task.estimated_duration} hour(s)
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleTaskComplete(task.id.toString());
-                }}
-                style={{
-                  backgroundColor: isCompleted ? '#4CAF50' : '#2196F3',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  padding: '4px 8px',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  width: '80%',
-                  margin: '0 auto'
-                }}
-              >
-                {isCompleted ? 'Completed' : 'Complete Task'}
-              </button>
-            </div>
-          ),
-        },
-        position: { x: 0, y: 0 },
-        style: {
-          ...nodeStyle,
-          background: isCompleted ? '#f0fff0' : '#fff', // Light green background for completed tasks
-        }
-      });
+      const generatedNodes: Node[] = [];
+      const generatedEdges: Edge[] = [];
+      const totalTasks = Object.keys(tasksData).length;
+      let processedTasks = 0;
 
-      task.dependencies.forEach((dep: number) => {
-        generatedEdges.push({
-          id: `e${dep}-${task.id}`,
-          source: dep.toString(),
-          target: task.id.toString(),
-          animated: true,
-          style: {
-            stroke: '#888',
-            strokeWidth: 2,
+      for (const key of Object.keys(tasksData)) {
+        const task = tasksData[key];
+        const isCompleted = completedTasks.has(task.id.toString());
+        
+        // Simulate some processing time for visual feedback
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
+        generatedNodes.push({
+          id: task.id.toString(),
+          data: {
+            label: (
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ 
+                  fontWeight: 'bold', 
+                  marginBottom: '4px',
+                  fontSize: '14px',
+                  color: '#333',
+                  textDecoration: isCompleted ? 'line-through' : 'none'
+                }}>
+                  {task.name_of_the_task}
+                </div>
+                <div style={{
+                  color: '#666',
+                  fontSize: '12px',
+                  marginBottom: '8px'
+                }}>
+                  Duration: {task.estimated_duration} day(s)
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTaskComplete(task.id.toString());
+                  }}
+                  style={{
+                    backgroundColor: isCompleted ? '#4CAF50' : '#2196F3',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '4px 8px',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    width: '80%',
+                    margin: '0 auto'
+                  }}
+                >
+                  {isCompleted ? 'Completed' : 'Complete Task'}
+                </button>
+              </div>
+            ),
           },
+          position: { x: 0, y: 0 },
+          style: {
+            ...nodeStyle,
+            background: isCompleted ? '#f0fff0' : '#fff',
+          }
         });
-      });
-    });
 
-    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-      generatedNodes, 
-      generatedEdges,
-      layout
-    );
-    setNodes(layoutedNodes);
-    setEdges(layoutedEdges);
-  }, [tasksData, layout, completedTasks]); // Added completedTasks as dependency
+        task.dependencies.forEach((dep: number) => {
+          generatedEdges.push({
+            id: `e${dep}-${task.id}`,
+            source: dep.toString(),
+            target: task.id.toString(),
+            animated: true,
+            style: {
+              stroke: '#888',
+              strokeWidth: 2,
+            },
+          });
+        });
+
+        processedTasks++;
+        setLoadingProgress((processedTasks / totalTasks) * 100);
+      }
+
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+        generatedNodes, 
+        generatedEdges,
+        layout
+      );
+      
+      setNodes(layoutedNodes);
+      setEdges(layoutedEdges);
+      setIsLoading(false);
+    };
+
+    generateGraph();
+  }, [tasksData, layout, completedTasks]);
 
   const toggleLayout = () => {
     setLayout(current => current === "TB" ? "LR" : "TB");
@@ -192,6 +212,25 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
 
   return (
     <div style={{ width: "100%", height: "600px", border: '1px solid #ddd', borderRadius: '8px' }}>
+      {isLoading && (
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          zIndex: 1000,
+          backgroundColor: 'white',
+          padding: '20px',
+          borderRadius: '8px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.1)',
+          width: '300px'
+        }}>
+          <div style={{ marginBottom: '10px', textAlign: 'center' }}>
+            Generating Graph...
+          </div>
+          <LoadingBar progress={loadingProgress} />
+        </div>
+      )}
       <ReactFlowProvider>
         <ReactFlow 
           nodes={nodes} 
