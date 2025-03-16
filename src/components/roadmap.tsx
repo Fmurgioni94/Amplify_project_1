@@ -45,7 +45,6 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = "TB") => 
   const dagreGraph = new dagre.graphlib.Graph();
   dagreGraph.setDefaultEdgeLabel(() => ({}));
   
-  // Configure the graph for tree layout
   dagreGraph.setGraph({ 
     rankdir: direction,
     align: 'UL',
@@ -54,30 +53,32 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = "TB") => 
     edgesep: 50,
   });
 
+  // Ensure node IDs are strings
   nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight });
+    const nodeId = String(node.id); // Convert to string explicitly
+    dagreGraph.setNode(nodeId, { width: nodeWidth, height: nodeHeight });
   });
 
   edges.forEach((edge) => {
-    dagreGraph.setEdge(edge.source, edge.target);
+    const sourceId = String(edge.source);
+    const targetId = String(edge.target);
+    dagreGraph.setEdge(sourceId, targetId);
   });
 
   dagre.layout(dagreGraph);
 
-  // Position nodes
   nodes.forEach((node) => {
-    const nodeWithPosition = dagreGraph.node(node.id);
+    const nodeId = String(node.id);
+    const nodeWithPosition = dagreGraph.node(nodeId);
     node.position = {
       x: nodeWithPosition.x - nodeWidth / 2,
       y: nodeWithPosition.y - nodeHeight / 2,
     };
-    // Add custom styling
     node.style = nodeStyle;
   });
 
-  // Style edges
   edges.forEach((edge) => {
-    edge.type = 'smoothstep'; // smoother edge style
+    edge.type = 'smoothstep';
     edge.style = {
       stroke: '#888',
       strokeWidth: 2,
@@ -109,12 +110,12 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
     const generatedNodes: Node[] = [];
     const generatedEdges: Edge[] = [];
 
-    Object.keys(tasksData).forEach((key) => {
-      const task = tasksData[key];
-      const isCompleted = completedTasks.has(task.id.toString());
+    Object.entries(tasksData).forEach(([key, task]) => {
+      const taskId = String(task.id); // Convert ID to string
+      const isCompleted = completedTasks.has(taskId);
       
       generatedNodes.push({
-        id: task.id.toString(),
+        id: taskId,
         data: {
           label: (
             <div style={{ textAlign: 'center' }}>
@@ -137,7 +138,7 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleTaskComplete(task.id.toString());
+                  handleTaskComplete(taskId);
                 }}
                 style={{
                   backgroundColor: isCompleted ? '#4CAF50' : '#2196F3',
@@ -159,15 +160,16 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
         position: { x: 0, y: 0 },
         style: {
           ...nodeStyle,
-          background: isCompleted ? '#f0fff0' : '#fff', // Light green background for completed tasks
+          background: isCompleted ? '#f0fff0' : '#fff',
         }
       });
 
+      // Convert dependency IDs to strings
       task.dependencies.forEach((dep: number) => {
         generatedEdges.push({
-          id: `e${dep}-${task.id}`,
-          source: dep.toString(),
-          target: task.id.toString(),
+          id: `e${dep}-${taskId}`,
+          source: String(dep),
+          target: taskId,
           animated: true,
           style: {
             stroke: '#888',
@@ -184,7 +186,7 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
     );
     setNodes(layoutedNodes);
     setEdges(layoutedEdges);
-  }, [tasksData, layout, completedTasks]); // Added completedTasks as dependency
+  }, [tasksData, layout, completedTasks]);
 
   const toggleLayout = () => {
     setLayout(current => current === "TB" ? "LR" : "TB");
