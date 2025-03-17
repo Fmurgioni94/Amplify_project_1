@@ -42,24 +42,65 @@ function Home() {
       try {
         socket.send(JSON.stringify(message))
         socket.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          console.log('Message from server:', event.data);
-          const result: any = data.result;
-          const message: string | undefined = result?.text;
-          
-          // Try to parse the message as JSON if it exists
-          if (message) {
-            try {
-              const parsedData = JSON.parse(message);
-              if (typeof parsedData === 'object') {
-                setRoadmapData(parsedData);
-              }
-            } catch (e) {
-              console.log('Message is not in JSON format');
-            }
-          }
+          console.log('Raw message received:', event.data);
+          try {
+            const data = JSON.parse(event.data);
+            console.log('Parsed WebSocket message:', data);
 
-          setCatMessage(message ?? "");
+            // If this is the initial "processing" message, keep loading
+            if (data.status === "processing" && data.message === "Task started!") {
+              console.log('Task started, waiting for results...');
+              return;
+            }
+
+            // Handle the completion message
+            if (data.status === "complete" && data.result) {
+              const result = data.result;
+              if (!result?.text) {
+                console.log('No result text in response');
+                setIsLoading(false);
+                return;
+              }
+
+              try {
+                // First, parse the text field which contains the JSON string
+                const parsedText = JSON.parse(result.text);
+                console.log('Parsed result text:', parsedText);
+
+                // Validate the structure before processing
+                if (parsedText && parsedText.tasks && Array.isArray(parsedText.tasks)) {
+                  const taskData: TasksData = {};
+                  
+                  parsedText.tasks.forEach((task: any) => {
+                    // Validate required fields exist before processing
+                    if (task && typeof task.id !== 'undefined') {
+                      const taskId = task.id.toString();
+                      taskData[taskId] = {
+                        name_of_the_task: task.name_of_the_task || 'Unnamed Task',
+                        id: task.id,
+                        dependencies: Array.isArray(task.dependencies) ? task.dependencies : [],
+                        estimated_duration: task.estimated_duration || 0
+                      };
+                    } else {
+                      console.warn('Skipping invalid task:', task);
+                    }
+                  });
+
+                  setRoadmapData(taskData);
+                  setCatMessage(result.text);
+                } else {
+                  console.error('Invalid tasks data structure:', parsedText);
+                }
+              } catch (error) {
+                console.error('Error processing result data:', error);
+              } finally {
+                setIsLoading(false);
+              }
+            }
+          } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+            setIsLoading(false);
+          }
         };
         setText("");
   
