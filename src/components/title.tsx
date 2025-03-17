@@ -1,6 +1,6 @@
 type TitleProps = {
     text: string;
-    size?: "sm" | "md" | "lg"; // Dimensioni personalizzabili
+    size?: "sm" | "md" | "lg";
   };
   
   function Title({ text, size = "md" }: TitleProps) {
