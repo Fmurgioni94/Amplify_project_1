@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import Home from './pages/home'
+import Navbar from './components/Navbar'
 import './App.css'
 import { Amplify } from 'aws-amplify'
-
 
 function App() {
   useEffect(() => {
@@ -10,11 +10,12 @@ function App() {
     console.log(Amplify.getConfig())
   }, [])
   return (
-    <>
-      <div>
+    <div className="min-h-screen bg-gray-50">
+      <Navbar />
+      <main className="container mx-auto px-4 pt-20">
         <Home />
-      </div>
-    </>
+      </main>
+    </div>
   )
 }
 
