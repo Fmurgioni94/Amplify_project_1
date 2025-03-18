@@ -21,7 +21,7 @@ interface TasksData {
 function Home() {
     const [text, setText] = useState("");
     const [isLoading, setIsLoading] = useState(false);
-    const [catMessage, setCatMessage] = useState("");
+    // const [catMessage, setCatMessage] = useState("");
     const [roadmapData, setRoadmapData] = useState<TasksData | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const socketRef = useRef<WebSocket | null>(null);
@@ -161,7 +161,7 @@ function Home() {
                                 });
 
                                 setRoadmapData(taskData);
-                                setCatMessage(result.text);
+                                // setCatMessage(result.text);
                             } else {
                                 console.error('Invalid tasks data structure:', parsedText);
                             }
