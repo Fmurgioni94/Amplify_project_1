@@ -3,7 +3,7 @@ import Title from "../components/title.tsx";
 import WelcomeMessage from "../components/welcomeMessage.tsx";
 import TextInput from "../components/input_bar.tsx";
 import Button from "../components/button.tsx";
-import MessageFromTheCat from "../components/message_from_the_cat.tsx";
+// import MessageFromTheCat from "../components/message_from_the_cat.tsx";
 import DynamicRoadmap from "../components/roadmap.tsx";
 
 // Define the Task interface
