@@ -12,8 +12,9 @@ import * as dagre from "dagre";
 import 'reactflow/dist/style.css';
 
 interface Task {
-  name_of_the_task: string;
   id: number;
+  name_of_the_task: string;
+  description: string;
   dependencies: number[];
   estimated_duration: number;
 }
@@ -92,6 +93,7 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [layout, setLayout] = useState<"TB" | "LR">("TB");
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
 
   const handleTaskComplete = (taskId: string) => {
     setCompletedTasks(prev => {
@@ -103,6 +105,65 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
       }
       return newSet;
     });
+  };
+
+  const onNodeClick = (_: React.MouseEvent, node: Node) => {
+    const task = tasksData[node.id];
+    setSelectedTask(task);
+  };
+
+  const TaskDetailsModal = () => {
+    if (!selectedTask) return null;
+
+    return (
+      <div
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+        }}
+        onClick={() => setSelectedTask(null)}
+      >
+        <div
+          style={{
+            background: 'white',
+            padding: '20px',
+            borderRadius: '8px',
+            maxWidth: '500px',
+            width: '90%',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <h2 style={{ marginTop: 0 }}>{selectedTask.name_of_the_task}</h2>
+          <p><strong>Description:</strong></p>
+          <p>{selectedTask.description}</p>
+          <p><strong>Estimated Duration:</strong> {selectedTask.estimated_duration} hour(s)</p>
+          <button
+            onClick={() => setSelectedTask(null)}
+            style={{
+              padding: '8px 16px',
+              background: '#2196F3',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              marginTop: '10px',
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -202,6 +263,7 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
           minZoom={0.2}
           maxZoom={4}
           proOptions={{ hideAttribution: true }}
+          onNodeClick={onNodeClick}
         >
           <Background color="#f8f8f8" gap={16} />
           <Controls />
@@ -220,6 +282,7 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
             </button>
           </Panel>
         </ReactFlow>
+        <TaskDetailsModal />
       </ReactFlowProvider>
     </div>
   );

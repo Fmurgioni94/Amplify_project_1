@@ -10,6 +10,7 @@ import DynamicRoadmap from "../components/roadmap.tsx";
 interface Task {
   name_of_the_task: string;
   id: number;
+  description: string;
   dependencies: number[];
   estimated_duration: number;
 }
@@ -140,6 +141,15 @@ function Home() {
                         }
 
                         try {
+                            // Check if the response is an error message
+                            if (typeof result.text === 'string' && result.text.includes("cannot assist")) {
+                                console.log('Received error message from server:', result.text);
+                                // Handle the error case - you might want to show this to the user
+                                setIsLoading(false);
+                                setText("");
+                                return;
+                            }
+
                             const parsedText = JSON.parse(result.text);
                             console.log('Parsed result text:', parsedText);
 
@@ -152,6 +162,7 @@ function Home() {
                                         taskData[taskId] = {
                                             name_of_the_task: task.name_of_the_task || 'Unnamed Task',
                                             id: task.id,
+                                            description: task.description || 'No description available',
                                             dependencies: Array.isArray(task.dependencies) ? task.dependencies : [],
                                             estimated_duration: task.estimated_duration || 0
                                         };
@@ -161,12 +172,12 @@ function Home() {
                                 });
 
                                 setRoadmapData(taskData);
-                                // setCatMessage(result.text);
                             } else {
                                 console.error('Invalid tasks data structure:', parsedText);
                             }
                         } catch (error) {
                             console.error('Error processing result data:', error);
+                            // You might want to show an error message to the user here
                         } finally {
                             setIsLoading(false);
                             setText("");
