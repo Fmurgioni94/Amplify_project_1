@@ -341,16 +341,38 @@ function CourseworkOrganiser() {
 
     const handleSaveStudentData = async (student: StudentSkill) => {
         try {
-            const result = await client.models.studentInfo.create({
-                name: student.name,
-                cognitivePower: 0.0, // Default value as float
-                programming: parseFloat(student.skills.programming.toString()),
-                writing: parseFloat(student.skills.writing.toString()),
-                analysis: parseFloat(student.skills.analysis.toString()),
-                testing: parseFloat(student.skills.testing.toString()),
-                design: parseFloat(student.skills.design.toString()),
-                documentation: parseFloat(student.skills.documentation.toString())
+            // First try to find an existing entry
+            const existingEntry = await client.models.studentInfo.get({
+                id: student.studentId
             });
+
+            let result;
+            if (existingEntry.data) {
+                // Update existing entry
+                result = await client.models.studentInfo.update({
+                    id: student.studentId,
+                    name: student.name,
+                    programming: parseFloat(student.skills.programming.toString()),
+                    writing: parseFloat(student.skills.writing.toString()),
+                    analysis: parseFloat(student.skills.analysis.toString()),
+                    testing: parseFloat(student.skills.testing.toString()),
+                    design: parseFloat(student.skills.design.toString()),
+                    documentation: parseFloat(student.skills.documentation.toString())
+                });
+            } else {
+                // Create new entry
+                result = await client.models.studentInfo.create({
+                    id: student.studentId,
+                    name: student.name,
+                    cognitivePower: 0.0,
+                    programming: parseFloat(student.skills.programming.toString()),
+                    writing: parseFloat(student.skills.writing.toString()),
+                    analysis: parseFloat(student.skills.analysis.toString()),
+                    testing: parseFloat(student.skills.testing.toString()),
+                    design: parseFloat(student.skills.design.toString()),
+                    documentation: parseFloat(student.skills.documentation.toString())
+                });
+            }
 
             if (result.errors) {
                 console.error('Errors saving student:', result.errors);
@@ -358,38 +380,11 @@ function CourseworkOrganiser() {
                 return;
             }
 
-            alert(`Successfully saved data for ${student.name}`);
-            console.log('Saved student data:', result.data);
+            alert(`Successfully ${existingEntry.data ? 'updated' : 'saved'} data for ${student.name}`);
+            console.log(`${existingEntry.data ? 'Updated' : 'Saved'} student data:`, result.data);
         } catch (error) {
             console.error('Error saving student:', error);
             alert(`Error saving data for ${student.name}`);
-        }
-    };
-
-    const handleUpdateStudentData = async (student: StudentSkill) => {
-        try {
-            const result = await client.models.studentInfo.update({
-                id: student.studentId,
-                name: student.name,
-                programming: parseFloat(student.skills.programming.toString()),
-                writing: parseFloat(student.skills.writing.toString()),
-                analysis: parseFloat(student.skills.analysis.toString()),
-                testing: parseFloat(student.skills.testing.toString()),
-                design: parseFloat(student.skills.design.toString()),
-                documentation: parseFloat(student.skills.documentation.toString())
-            });
-
-            if (result.errors) {
-                console.error('Errors updating student:', result.errors);
-                alert(`Error updating data for ${student.name}`);
-                return;
-            }
-
-            alert(`Successfully updated data for ${student.name}`);
-            console.log('Updated student data:', result.data);
-        } catch (error) {
-            console.error('Error updating student:', error);
-            alert(`Error updating data for ${student.name}`);
         }
     };
 
@@ -496,19 +491,13 @@ function CourseworkOrganiser() {
                                                 onClick={() => handleSaveStudentData(student)}
                                                 className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
                                             >
-                                                Save to DB
-                                            </button>
-                                            <button
-                                                onClick={() => handleUpdateStudentData(student)}
-                                                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                                            >
-                                                Update in DB
+                                                Save
                                             </button>
                                             <button
                                                 onClick={() => handleDeleteStudentData(student)}
                                                 className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
                                             >
-                                                Delete from DB
+                                                Delete
                                             </button>
                                         </div>
                                     </div>
