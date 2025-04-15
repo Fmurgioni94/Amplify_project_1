@@ -28,23 +28,12 @@ interface StudentTasks {
 }
 
 // Add these interfaces after the existing ones
-interface StudentInfo {
-    id: string;
-    name: string;
-    skills: {
-        programming: number;
-        writing: number;
-        analysis: number;
-        testing: number;
-        design: number;
-        documentation: number;
-    };
-}
 
-// Update the StudentSkill interface to include name
+// Update the StudentSkill interface to include cognitivePower
 interface StudentSkill {
     studentId: string;
     name: string;
+    cognitivePower: number;
     skills: {
         programming: number;
         writing: number;
@@ -105,6 +94,7 @@ function CourseworkOrganiser() {
     const [studentSkills, setStudentSkills] = useState<StudentSkill[]>([]);
     const [isNameModalOpen, setIsNameModalOpen] = useState(false);
     const [newStudentName, setNewStudentName] = useState("");
+    const [isLoadingData, setIsLoadingData] = useState(true);
 
     const setupWebSocket = useCallback(() => {
         if (!isMountedRef.current) return null;
@@ -280,13 +270,20 @@ function CourseworkOrganiser() {
             const studentIndex = newSkills.findIndex(s => s.studentId === studentId);
             
             if (studentIndex !== -1) {
-                newSkills[studentIndex] = {
-                    ...newSkills[studentIndex],
-                    skills: {
-                        ...newSkills[studentIndex].skills,
-                        [skillName]: value
-                    }
-                };
+                if (skillName === 'cognitivePower') {
+                    newSkills[studentIndex] = {
+                        ...newSkills[studentIndex],
+                        cognitivePower: value
+                    };
+                } else {
+                    newSkills[studentIndex] = {
+                        ...newSkills[studentIndex],
+                        skills: {
+                            ...newSkills[studentIndex].skills,
+                            [skillName]: value
+                        }
+                    };
+                }
             }
             
             return newSkills;
@@ -311,6 +308,7 @@ function CourseworkOrganiser() {
             {
                 studentId: `S${prevSkills.length + 1}`,
                 name: newStudentName,
+                cognitivePower: 0.7, // Default value
                 skills: {
                     programming: 0.7,
                     writing: 0.7,
@@ -341,17 +339,16 @@ function CourseworkOrganiser() {
 
     const handleSaveStudentData = async (student: StudentSkill) => {
         try {
-            // First try to find an existing entry
             const existingEntry = await client.models.studentInfo.get({
                 id: student.studentId
             });
 
             let result;
             if (existingEntry.data) {
-                // Update existing entry
                 result = await client.models.studentInfo.update({
                     id: student.studentId,
                     name: student.name,
+                    cognitivePower: parseFloat(student.cognitivePower.toString()),
                     programming: parseFloat(student.skills.programming.toString()),
                     writing: parseFloat(student.skills.writing.toString()),
                     analysis: parseFloat(student.skills.analysis.toString()),
@@ -360,11 +357,10 @@ function CourseworkOrganiser() {
                     documentation: parseFloat(student.skills.documentation.toString())
                 });
             } else {
-                // Create new entry
                 result = await client.models.studentInfo.create({
                     id: student.studentId,
                     name: student.name,
-                    cognitivePower: 0.0,
+                    cognitivePower: parseFloat(student.cognitivePower.toString()),
                     programming: parseFloat(student.skills.programming.toString()),
                     writing: parseFloat(student.skills.writing.toString()),
                     analysis: parseFloat(student.skills.analysis.toString()),
@@ -408,6 +404,53 @@ function CourseworkOrganiser() {
         }
     };
 
+    // Add this function to fetch student data
+    const fetchStudentData = async () => {
+        try {
+            const { data: students, errors } = await client.models.studentInfo.list();
+            
+            if (errors) {
+                console.error('Error fetching students:', errors);
+                return;
+            }
+
+            if (students && students.length > 0) {
+                const formattedStudents: StudentSkill[] = students.map(student => {
+                    // Ensure all required fields are present and non-null
+                    const studentId = student.id || `S${Math.random().toString(36).substr(2, 9)}`;
+                    const name = student.name || 'Unnamed Student';
+                    const cognitivePower = student.cognitivePower ?? 0.7;
+                    
+                    return {
+                        studentId,
+                        name,
+                        cognitivePower,
+                        skills: {
+                            programming: student.programming ?? 0.7,
+                            writing: student.writing ?? 0.7,
+                            analysis: student.analysis ?? 0.7,
+                            testing: student.testing ?? 0.7,
+                            design: student.design ?? 0.7,
+                            documentation: student.documentation ?? 0.7
+                        }
+                    };
+                });
+
+                setStudentSkills(formattedStudents);
+                setNumberOfStudents(formattedStudents.length);
+            }
+        } catch (error) {
+            console.error('Error fetching student data:', error);
+        } finally {
+            setIsLoadingData(false);
+        }
+    };
+
+    // Add this useEffect to load data when component mounts
+    useEffect(() => {
+        fetchStudentData();
+    }, []);
+
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col">
             <div className="max-w-7xl mx-auto px-4 py-3">
@@ -416,101 +459,126 @@ function CourseworkOrganiser() {
 
             <main className="flex-1 max-w-4xl mx-auto px-4 py-8 w-full mb-20">
                 <div className="bg-white rounded-xl shadow-sm p-6 space-y-8">
-                    <div className="space-y-4">
-                        <h2 className="text-xl font-semibold text-gray-800">Select Your Coursework</h2>
-                        <select
-                            value={selectedCoursework}
-                            onChange={(e) => setSelectedCoursework(e.target.value)}
-                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        >
-                            <option value="">Select a coursework...</option>
-                            {COURSEWORK_LIST.map((coursework) => (
-                                <option key={coursework.id} value={coursework.name}>
-                                    {coursework.name}
-                                </option>
-                            ))}
-                        </select>
-
-                        <div className="space-y-4 mt-6">
-                            <div className="flex justify-between items-center">
-                                <h3 className="text-lg font-semibold text-gray-800">Students</h3>
-                                <button
-                                    onClick={addStudent}
-                                    disabled={numberOfStudents >= 10}
-                                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                                >
-                                    Add Student
-                                </button>
-                            </div>
+                    {isLoadingData ? (
+                        <div className="flex justify-center items-center py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                         </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <h2 className="text-xl font-semibold text-gray-800">Select Your Coursework</h2>
+                            <select
+                                value={selectedCoursework}
+                                onChange={(e) => setSelectedCoursework(e.target.value)}
+                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="">Select a coursework...</option>
+                                {COURSEWORK_LIST.map((coursework) => (
+                                    <option key={coursework.id} value={coursework.name}>
+                                        {coursework.name}
+                                    </option>
+                                ))}
+                            </select>
 
-                        {numberOfStudents > 0 && (
-                            <div className="space-y-6 mt-6">
-                                <h3 className="text-lg font-semibold text-gray-800">Student Skills Self-Evaluation</h3>
-                                <p className="text-sm text-gray-600">Rate each skill from 0 to 1 (0 = No experience, 1 = Expert)</p>
-                                {studentSkills.map((student, studentIndex) => (
-                                    <div key={student.studentId} className="relative space-y-4 p-6 border rounded-lg bg-gray-50">
-                                        <div className="flex justify-between items-center">
-                                            <div>
-                                                <h4 className="font-medium text-lg">{student.name}</h4>
-                                                <p className="text-sm text-gray-500">Student {studentIndex + 1}</p>
+                            <div className="space-y-4 mt-6">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-lg font-semibold text-gray-800">Students</h3>
+                                    <button
+                                        onClick={addStudent}
+                                        disabled={numberOfStudents >= 10}
+                                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                                    >
+                                        Add Student
+                                    </button>
+                                </div>
+                            </div>
+
+                            {numberOfStudents > 0 && (
+                                <div className="space-y-6 mt-6">
+                                    <h3 className="text-lg font-semibold text-gray-800">Student Skills Self-Evaluation</h3>
+                                    <p className="text-sm text-gray-600">Rate each skill from 0 to 1 (0 = No experience, 1 = Expert)</p>
+                                    {studentSkills.map((student, studentIndex) => (
+                                        <div key={student.studentId} className="relative space-y-4 p-6 border rounded-lg bg-gray-50">
+                                            <div className="flex justify-between items-center">
+                                                <div>
+                                                    <h4 className="font-medium text-lg">{student.name}</h4>
+                                                    <p className="text-sm text-gray-500">Student {studentIndex + 1}</p>
+                                                </div>
+                                                <button
+                                                    onClick={() => removeStudent(studentIndex)}
+                                                    disabled={numberOfStudents <= 1}
+                                                    className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                                                >
+                                                    Remove
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={() => removeStudent(studentIndex)}
-                                                disabled={numberOfStudents <= 1}
-                                                className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                                            >
-                                                Remove
-                                            </button>
-                                        </div>
-                                        <div className="grid gap-4">
-                                            {Object.entries(student.skills).map(([skillName, value]) => (
-                                                <div key={`${student.studentId}-${skillName}`} className="space-y-2">
+                                            <div className="grid gap-4">
+                                                <div key={`${student.studentId}-cognitivePower`} className="space-y-2">
                                                     <label className="flex justify-between">
-                                                        <span className="capitalize">{skillName}</span>
-                                                        <span className="text-gray-500">{Math.round(value * 100)}%</span>
+                                                        <span className="capitalize">Cognitive Power</span>
+                                                        <span className="text-gray-500">{Math.round(student.cognitivePower * 100)}%</span>
                                                     </label>
                                                     <input
                                                         type="range"
                                                         min="0"
                                                         max="1"
                                                         step="0.1"
-                                                        value={value}
+                                                        value={student.cognitivePower}
                                                         onChange={(e) => handleSkillChange(
                                                             student.studentId,
-                                                            skillName,
+                                                            'cognitivePower',
                                                             parseFloat(e.target.value)
                                                         )}
                                                         className="w-full"
                                                     />
                                                 </div>
-                                            ))}
+                                                {Object.entries(student.skills).map(([skillName, value]) => (
+                                                    <div key={`${student.studentId}-${skillName}`} className="space-y-2">
+                                                        <label className="flex justify-between">
+                                                            <span className="capitalize">{skillName}</span>
+                                                            <span className="text-gray-500">{Math.round(value * 100)}%</span>
+                                                        </label>
+                                                        <input
+                                                            type="range"
+                                                            min="0"
+                                                            max="1"
+                                                            step="0.1"
+                                                            value={value}
+                                                            onChange={(e) => handleSkillChange(
+                                                                student.studentId,
+                                                                skillName,
+                                                                parseFloat(e.target.value)
+                                                            )}
+                                                            className="w-full"
+                                                        />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="mt-6 flex justify-end space-x-3">
+                                                <button
+                                                    onClick={() => handleSaveStudentData(student)}
+                                                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                                                >
+                                                    Save
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDeleteStudentData(student)}
+                                                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                                                >
+                                                    Delete
+                                                </button>
+                                            </div>
                                         </div>
-                                        <div className="mt-6 flex justify-end space-x-3">
-                                            <button
-                                                onClick={() => handleSaveStudentData(student)}
-                                                className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                                            >
-                                                Save
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteStudentData(student)}
-                                                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        
-                        <Button
-                            label={!isConnected ? "Connecting..." : isLoading ? "Generating schedule..." : "Generate schedule"}
-                            onClick={handleGenerateRoadmap}
-                            disabled={!isConnected || isLoading || !selectedCoursework || numberOfStudents === 0}
-                        />
-                    </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            <Button
+                                label={!isConnected ? "Connecting..." : isLoading ? "Generating schedule..." : "Generate schedule"}
+                                onClick={handleGenerateRoadmap}
+                                disabled={!isConnected || isLoading || !selectedCoursework || numberOfStudents === 0}
+                            />
+                        </div>
+                    )}
 
                     {studentAssignments && (
                         <div className="space-y-4">
