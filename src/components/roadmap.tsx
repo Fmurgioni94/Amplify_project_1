@@ -146,7 +146,7 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
           <h2 style={{ marginTop: 0 }}>{selectedTask.name_of_the_task}</h2>
           <p><strong>Description:</strong></p>
           <p>{selectedTask.description}</p>
-          <p><strong>Estimated Duration:</strong> {selectedTask.estimated_duration} hour(s)</p>
+          <p><strong>Estimated Duration:</strong> {selectedTask.estimated_duration} minutes(s)</p>
           <button
             onClick={() => setSelectedTask(null)}
             style={{
@@ -193,7 +193,7 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
                 fontSize: '12px',
                 marginBottom: '8px'
               }}>
-                Duration: {task.estimated_duration} hour(s)
+                Duration: {task.estimated_duration} minutes(s)
               </div>
               <button
                 onClick={(e) => {

@@ -1,50 +1,97 @@
-# React + TypeScript + Vite
+# Learning Roadmap Generator
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A web application that helps users create personalized learning roadmaps based on their preferences and coursework requirements.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Personalized Learning Roadmaps**: Generate customized learning paths based on user preferences using CheshireCat AI, a framework to customise agents
+- **Project Organization**: Split the subtasks between different coworkers using a genetic algorithm 
+- **Saved Roadmaps**: Save and manage your learning roadmaps for future reference
+- **Real-time Updates**: WebSocket-based communication for instant roadmap generation
+- **User Authentication**: Secure login and signup functionality using AWS Amplify
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+- **Frontend**: React, TypeScript
+- **UI Components**: AWS Amplify UI
+- **Authentication**: AWS Amplify Auth
+- **Styling**: Tailwind CSS
+- **Routing**: React Router
+- **State Management**: React Hooks
 
-- Configure the top-level `parserOptions` property like this:
+## Getting Started
 
-```js
-export default tseslint.config({
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+### Prerequisites
+
+- Node.js (v14 or higher)
+- npm or yarn
+- AWS account with Amplify configured
+
+### Installation
+
+1. Clone the repository:
+```bash
+git clone [repository-url]
+cd [project-directory]
 ```
 
-- Replace `tseslint.configs.recommended` to `tseslint.configs.recommendedTypeChecked` or `tseslint.configs.strictTypeChecked`
-- Optionally add `...tseslint.configs.stylisticTypeChecked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and update the config:
-
-```js
-// eslint.config.js
-import react from 'eslint-plugin-react'
-
-export default tseslint.config({
-  // Set the react version
-  settings: { react: { version: '18.3' } },
-  plugins: {
-    // Add the react plugin
-    react,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended rules
-    ...react.configs.recommended.rules,
-    ...react.configs['jsx-runtime'].rules,
-  },
-})
+2. Install dependencies:
+```bash
+npm install
+# or
+yarn install
 ```
+
+3. Configure AWS Amplify:
+```bash
+amplify init
+amplify push
+```
+
+4. Start the development server:
+```bash
+npm start
+# or
+yarn start
+```
+
+## Project Structure
+
+- `src/pages/`: Main page components
+  - `home.tsx`: Home page with roadmap generation
+  - `saved_roadmaps.tsx`: Saved roadmaps management
+  - `courseworkOrganiser.tsx`: Coursework organization
+- `src/components/`: Reusable components
+  - `Navbar.tsx`: Navigation bar
+  - `Modal.tsx`: Modal component
+  - `roadmap.tsx`: Roadmap visualization
+- `src/App.tsx`: Main application component with routing
+
+## Usage
+
+1. **Home Page**
+   - Enter your learning preferences
+   - Generate a personalized roadmap
+   - Save roadmaps for future reference
+
+2. **Coursework Organizer**
+   - Select from predefined coursework
+   - Generate specific coursework roadmaps
+   - Manage coursework progress
+
+3. **Saved Roadmaps**
+   - View all saved roadmaps
+   - Edit roadmap titles
+   - Delete unwanted roadmaps
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
