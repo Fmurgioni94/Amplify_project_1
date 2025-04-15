@@ -4,7 +4,6 @@ import WelcomeMessage from "../components/welcomeMessage.tsx";
 import TextInput from "../components/input_bar.tsx";
 import Button from "../components/button.tsx";
 import DynamicRoadmap from "../components/roadmap.tsx";
-import { useNavigate } from 'react-router-dom';
 import PreferencesSettingPage from './preferences_setting_page';
 
 // Define the Task interface
