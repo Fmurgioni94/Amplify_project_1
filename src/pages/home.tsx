@@ -5,6 +5,10 @@ import TextInput from "../components/input_bar.tsx";
 import Button from "../components/button.tsx";
 import DynamicRoadmap from "../components/roadmap.tsx";
 import PreferencesSettingPage from './preferences_setting_page';
+import { generateClient } from 'aws-amplify/data';
+import { type Schema } from '../../amplify/data/resource';
+
+const client = generateClient<Schema>();
 
 // Define the Task interface
 interface Task {
@@ -30,6 +34,7 @@ function Home() {
     const isMountedRef = useRef(false);
     const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
     const [pendingGoal, setPendingGoal] = useState<string>("");
+    // const [savedRoadmaps, setSavedRoadmaps] = useState<TasksData[]>([]);
 
     const setupWebSocket = useCallback(() => {
         // Don't setup if not mounted
@@ -124,20 +129,37 @@ function Home() {
         setText(""); // Clear the input after opening the modal
     };
 
-    const handleSaveRoadmap = () => {
+    const handleSaveRoadmap = async () => {
         if (!roadmapData) return;
 
-        const savedRoadmaps = JSON.parse(localStorage.getItem('savedRoadmaps') || '[]');
-        const newRoadmap = {
-            id: Date.now().toString(),
-            title: text || 'Untitled Roadmap',
-            date: new Date().toLocaleDateString(),
-            tasksData: roadmapData
-        };
+        try {
+            // Convert the roadmapData to match the WebSocket response format exactly
+            const mapData = {
+                tasks: Object.values(roadmapData).map(task => ({
+                    id: task.id,
+                    name_of_the_task: task.name_of_the_task,
+                    description: task.description,
+                    dependencies: task.dependencies.length > 0 ? task.dependencies : "",
+                    estimated_duration: task.estimated_duration
+                }))
+            };
 
-        savedRoadmaps.push(newRoadmap);
-        localStorage.setItem('savedRoadmaps', JSON.stringify(savedRoadmaps));
-        alert('Roadmap saved successfully!');
+            // Create the roadmap with the properly formatted map data
+            const result = await client.models.roadmap.create({
+                map: JSON.stringify(mapData)
+            });
+
+            if (result.errors) {
+                console.error('Error saving roadmap:', result.errors);
+                alert('Error saving roadmap. Please try again.');
+                return;
+            }
+
+            alert('Roadmap saved successfully!');
+        } catch (error) {
+            console.error('Error saving roadmap:', error);
+            alert('Error saving roadmap. Please try again.');
+        }
     };
 
     const handleSendPreferencesRequest = (preferences: any) => {
@@ -228,17 +250,32 @@ function Home() {
                                 if (parsedText && parsedText.tasks && Array.isArray(parsedText.tasks)) {
                                     const taskData: TasksData = {};
                                     
+                                    // Create tasks with their dependencies from the response
                                     parsedText.tasks.forEach((task: any, index: number) => {
                                         const taskId = (task && typeof task.id !== 'undefined' ? task.id : index + 1).toString();
+                                        
+                                        // Convert dependencies to array
+                                        let dependencies: number[] = [];
+                                        if (task.dependencies) {
+                                            if (typeof task.dependencies === 'number') {
+                                                // If it's a number, create a single-element array
+                                                dependencies = [task.dependencies];
+                                            } else if (Array.isArray(task.dependencies)) {
+                                                // If it's already an array, use it
+                                                dependencies = task.dependencies;
+                                            }
+                                        }
+
                                         taskData[taskId] = {
                                             name_of_the_task: task.name_of_the_task || 'Unnamed Task',
                                             id: parseInt(taskId),
                                             description: task.description || 'No description available',
-                                            dependencies: Array.isArray(task.dependencies) ? task.dependencies : [],
+                                            dependencies: dependencies,
                                             estimated_duration: task.estimated_duration || 0
                                         };
                                     });
 
+                                    console.log('Created task data with dependencies:', taskData);
                                     setRoadmapData(taskData);
                                 } else {
                                     console.error('Invalid tasks data structure:', parsedText);
@@ -290,7 +327,19 @@ function Home() {
                 </div>
                 <div className="bg-white rounded-xl shadow-sm p-6 space-y-8">                    
                     <div className="space-y-8">
-                        {roadmapData && <DynamicRoadmap tasksData={roadmapData} />}
+                        {isLoading ? (
+                            <div className="mt-8 text-center">
+                                <p className="text-gray-600">Generating roadmap...</p>
+                            </div>
+                        ) : roadmapData ? (
+                            <div className="mt-8">
+                                <DynamicRoadmap tasksData={roadmapData} />
+                            </div>
+                        ) : (
+                            <div className="mt-8 text-center">
+                                <p className="text-gray-600">Enter your goal to generate a roadmap</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </main>

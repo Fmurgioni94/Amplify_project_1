@@ -29,11 +29,12 @@ interface StudentTasks {
 
 // Add these interfaces after the existing ones
 
-// Update the StudentSkill interface to include cognitivePower
+// Update the StudentSkill interface to include cognitivePower and availableHours
 interface StudentSkill {
     studentId: string;
     name: string;
     cognitivePower: number;
+    availableHours: number;
     skills: {
         programming: number;
         writing: number;
@@ -275,6 +276,11 @@ function CourseworkOrganiser() {
                         ...newSkills[studentIndex],
                         cognitivePower: value
                     };
+                } else if (skillName === 'availableHours') {
+                    newSkills[studentIndex] = {
+                        ...newSkills[studentIndex],
+                        availableHours: value
+                    };
                 } else {
                     newSkills[studentIndex] = {
                         ...newSkills[studentIndex],
@@ -309,6 +315,7 @@ function CourseworkOrganiser() {
                 studentId: `S${prevSkills.length + 1}`,
                 name: newStudentName,
                 cognitivePower: 0.7, // Default value
+                availableHours: 20, // Default value (20 hours per week)
                 skills: {
                     programming: 0.7,
                     writing: 0.7,
@@ -349,6 +356,7 @@ function CourseworkOrganiser() {
                     id: student.studentId,
                     name: student.name,
                     cognitivePower: parseFloat(student.cognitivePower.toString()),
+                    availableHours: parseFloat(student.availableHours.toString()),
                     programming: parseFloat(student.skills.programming.toString()),
                     writing: parseFloat(student.skills.writing.toString()),
                     analysis: parseFloat(student.skills.analysis.toString()),
@@ -361,6 +369,7 @@ function CourseworkOrganiser() {
                     id: student.studentId,
                     name: student.name,
                     cognitivePower: parseFloat(student.cognitivePower.toString()),
+                    availableHours: parseFloat(student.availableHours.toString()),
                     programming: parseFloat(student.skills.programming.toString()),
                     writing: parseFloat(student.skills.writing.toString()),
                     analysis: parseFloat(student.skills.analysis.toString()),
@@ -420,11 +429,13 @@ function CourseworkOrganiser() {
                     const studentId = student.id || `S${Math.random().toString(36).substr(2, 9)}`;
                     const name = student.name || 'Unnamed Student';
                     const cognitivePower = student.cognitivePower ?? 0.7;
+                    const availableHours = student.availableHours ?? 20;
                     
                     return {
                         studentId,
                         name,
                         cognitivePower,
+                        availableHours,
                         skills: {
                             programming: student.programming ?? 0.7,
                             writing: student.writing ?? 0.7,
@@ -526,6 +537,25 @@ function CourseworkOrganiser() {
                                                         onChange={(e) => handleSkillChange(
                                                             student.studentId,
                                                             'cognitivePower',
+                                                            parseFloat(e.target.value)
+                                                        )}
+                                                        className="w-full"
+                                                    />
+                                                </div>
+                                                <div key={`${student.studentId}-availableHours`} className="space-y-2">
+                                                    <label className="flex justify-between">
+                                                        <span className="capitalize">Available Hours per Week</span>
+                                                        <span className="text-gray-500">{student.availableHours} hours</span>
+                                                    </label>
+                                                    <input
+                                                        type="range"
+                                                        min="0"
+                                                        max="40"
+                                                        step="1"
+                                                        value={student.availableHours}
+                                                        onChange={(e) => handleSkillChange(
+                                                            student.studentId,
+                                                            'availableHours',
                                                             parseFloat(e.target.value)
                                                         )}
                                                         className="w-full"

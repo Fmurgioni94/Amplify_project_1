@@ -224,17 +224,20 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
         }
       });
 
-      task.dependencies.forEach((dep: number) => {
-        generatedEdges.push({
-          id: `e${dep}-${task.id}`,
-          source: dep.toString(),
-          target: task.id.toString(),
-          animated: true,
-          style: {
-            stroke: '#888',
-            strokeWidth: 2,
-          },
-        });
+      // Create edges for dependencies
+      task.dependencies.forEach((depId: number) => {
+        if (tasksData[depId.toString()]) {
+          generatedEdges.push({
+            id: `e${depId}-${task.id}`,
+            source: depId.toString(),
+            target: task.id.toString(),
+            animated: true,
+            style: {
+              stroke: '#888',
+              strokeWidth: 2,
+            },
+          });
+        }
       });
     });
 
@@ -245,7 +248,7 @@ const DynamicRoadmap: React.FC<DynamicRoadmapProps> = ({ tasksData }) => {
     );
     setNodes(layoutedNodes);
     setEdges(layoutedEdges);
-  }, [tasksData, layout, completedTasks]); // Added completedTasks as dependency
+  }, [tasksData, layout, completedTasks]);
 
   const toggleLayout = () => {
     setLayout(current => current === "TB" ? "LR" : "TB");

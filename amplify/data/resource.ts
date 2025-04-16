@@ -24,6 +24,13 @@ const schema = a.schema({
     estimatedDuration: a.integer(),
   })
   .authorization((allow) => [allow.publicApiKey()]),
+
+  roadmap: a.model({
+    id: a.id().required(),
+    map: a.string().required(),
+    title: a.string(),
+  })
+  .authorization((allow) => [allow.publicApiKey()]),
 });
 
 
