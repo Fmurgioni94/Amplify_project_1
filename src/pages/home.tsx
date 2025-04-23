@@ -162,146 +162,248 @@ function Home() {
         }
     };
 
-    const handleSendPreferencesRequest = (preferences: any) => {
-        if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-            setIsLoading(true);
-            console.log("Input Text:", pendingGoal);
+    const handleSendPreferencesRequest = async (preferences: any) => {
+        if (!socketRef.current || !isConnected || isLoading) return;
+        setIsLoading(true);
+        console.log("Input Text:", pendingGoal);
 
-            // Create a combined message with preferences and the pending goal
-            const combinedMessage = {
-                message: pendingGoal,
-                preferences: preferences
-            };
+        try {
+            console.log('Attempting to connect to server at http://localhost:1865/message');
+            // Make API call instead of WebSocket
+            const response = await fetch('http://localhost:1865/message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: pendingGoal,
+                    preferences: preferences
+                })
+            }).catch(error => {
+                console.error('Network error:', error);
+                throw new Error(`Failed to connect to server: ${error.message}`);
+            });
 
-            const message = {
-                "action": "startTask",
-                "body": JSON.stringify(combinedMessage)
-            };
-            
-            // Log the final message string that will be sent to WebSocket
-            const messageString = JSON.stringify(message);
-            console.log("Raw message to be sent:", messageString);
+            if (!response) {
+                throw new Error('No response received from server');
+            }
 
+            console.log('Server response status:', response.status);
+            const rawData = await response.text();
+            console.log('Raw response:', rawData);
+
+            let data;
             try {
-                socketRef.current.onmessage = (event) => {
-                    try {
-                        console.log('Raw WebSocket response:', event.data);  // Log raw response
-                        const data = JSON.parse(event.data);
-                        console.log('Parsed WebSocket message:', data);
+                data = JSON.parse(rawData);
+                console.log('Parsed response data:', data);
+            } catch (parseError) {
+                console.error('Error parsing JSON response:', parseError);
+                throw new Error('Invalid JSON response from server');
+            }
 
-                        if (data.status === "processing" && data.message === "Task started!") {
-                            console.log('Task started, waiting for results...');
-                            return;
+            // Extract the tasks data from either content or text field
+            let tasksData;
+            if (data.content) {
+                try {
+                    tasksData = JSON.parse(data.content);
+                } catch (e) {
+                    console.error('Error parsing content:', e);
+                }
+            }
+            if (!tasksData && data.text) {
+                try {
+                    tasksData = JSON.parse(data.text);
+                } catch (e) {
+                    console.error('Error parsing text:', e);
+                }
+            }
+
+            console.log('Extracted tasks data:', tasksData);
+
+            // The response should now have the tasks array
+            if (tasksData && tasksData.tasks && Array.isArray(tasksData.tasks)) {
+                const taskData: TasksData = {};
+                
+                // Process each task
+                tasksData.tasks.forEach((task: any) => {
+                    // Handle dependencies that could be string, empty string, number, or array
+                    let dependencies: number[] = [];
+                    if (task.dependencies) {
+                        if (typeof task.dependencies === 'string') {
+                            if (task.dependencies !== "") {
+                                // If it's a non-empty string, try to parse it or convert to number
+                                try {
+                                    const parsed = JSON.parse(task.dependencies);
+                                    dependencies = Array.isArray(parsed) ? parsed : [Number(parsed)];
+                                } catch (e) {
+                                    // If parsing fails, try to convert to number
+                                    const num = Number(task.dependencies);
+                                    if (!isNaN(num)) {
+                                        dependencies = [num];
+                                    }
+                                }
+                            }
+                        } else if (typeof task.dependencies === 'number') {
+                            dependencies = [task.dependencies];
+                        } else if (Array.isArray(task.dependencies)) {
+                            dependencies = task.dependencies;
                         }
+                    }
 
-                        if (data.status === "complete" && data.result) {
-                            const result = data.result;
-                            console.log("Result: ", result.text);
-                            
-                            if (!result?.text) {
-                                console.log('No result text in response');
-                                setIsLoading(false);
+                    taskData[task.id.toString()] = {
+                        id: task.id,
+                        name_of_the_task: task.name_of_the_task,
+                        description: task.description,
+                        dependencies: dependencies,
+                        estimated_duration: task.estimated_duration
+                    };
+                });
+
+                console.log('Created task data with dependencies:', taskData);
+                setRoadmapData(taskData);
+                setIsLoading(false);
+                setPendingGoal("");
+            } else {
+                console.error('Invalid data structure received:', tasksData);
+                throw new Error('Invalid response format: missing tasks array');
+            }
+        } catch (error) {
+            console.error('Error making API request:', error);
+            setIsLoading(false);
+            
+            // Fallback to WebSocket if API fails
+            if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                const message = {
+                    "action": "startTask",
+                    "body": JSON.stringify({
+                        message: pendingGoal,
+                        preferences: preferences
+                    })
+                };
+                
+                try {
+                    socketRef.current.onmessage = (event) => {
+                        try {
+                            console.log('Raw WebSocket response:', event.data);  // Log raw response
+                            const data = JSON.parse(event.data);
+                            console.log('Parsed WebSocket message:', data);
+
+                            if (data.status === "processing" && data.message === "Task started!") {
+                                console.log('Task started, waiting for results...');
                                 return;
                             }
 
-                            try {
-                                // Check if the response is an error message
-                                if (typeof result.text === 'string' && 
-                                    (result.text.includes("cannot assist") || 
-                                     result.text.includes("I'm sorry") || 
-                                     result.text.includes("error processing"))) {
-                                    console.log('Received error message from server:', result.text);
-                                    alert("Error: " + result.text);
+                            if (data.status === "complete" && data.result) {
+                                const result = data.result;
+                                console.log("Result: ", result.text);
+                                
+                                if (!result?.text) {
+                                    console.log('No result text in response');
                                     setIsLoading(false);
                                     return;
                                 }
 
-                                // Handle the response text
-                                let parsedText;
-                                if (typeof result.text === 'string') {
-                                    try {
-                                        // Try to parse as JSON first
-                                        parsedText = JSON.parse(result.text);
-                                    } catch (parseError) {
-                                        console.error('Error parsing result.text as JSON:', parseError);
-                                        // If parsing fails, check if it's a valid error message
-                                        if (result.text.includes("error") || result.text.includes("sorry")) {
-                                            alert("Error: " + result.text);
-                                            setIsLoading(false);
-                                            return;
-                                        }
-                                        // If not an error message, create a single task with the text as description
-                                        parsedText = {
-                                            tasks: [{
-                                                name_of_the_task: "Learning Task",
-                                                id: 1,
-                                                description: result.text,
-                                                dependencies: [],
-                                                estimated_duration: 120
-                                            }]
-                                        };
+                                try {
+                                    // Check if the response is an error message
+                                    if (typeof result.text === 'string' && 
+                                        (result.text.includes("cannot assist") || 
+                                         result.text.includes("I'm sorry") || 
+                                         result.text.includes("error processing"))) {
+                                        console.log('Received error message from server:', result.text);
+                                        alert("Error: " + result.text);
+                                        setIsLoading(false);
+                                        return;
                                     }
-                                } else {
-                                    parsedText = result.text;
-                                }
 
-                                console.log('Processed result text:', parsedText);
-
-                                if (parsedText && parsedText.tasks && Array.isArray(parsedText.tasks)) {
-                                    const taskData: TasksData = {};
-                                    
-                                    // Create tasks with their dependencies from the response
-                                    parsedText.tasks.forEach((task: any, index: number) => {
-                                        const taskId = (task && typeof task.id !== 'undefined' ? task.id : index + 1).toString();
-                                        
-                                        // Convert dependencies to array
-                                        let dependencies: number[] = [];
-                                        if (task.dependencies) {
-                                            if (typeof task.dependencies === 'number') {
-                                                // If it's a number, create a single-element array
-                                                dependencies = [task.dependencies];
-                                            } else if (Array.isArray(task.dependencies)) {
-                                                // If it's already an array, use it
-                                                dependencies = task.dependencies;
+                                    // Handle the response text
+                                    let parsedText;
+                                    if (typeof result.text === 'string') {
+                                        try {
+                                            // Try to parse as JSON first
+                                            parsedText = JSON.parse(result.text);
+                                        } catch (parseError) {
+                                            console.error('Error parsing result.text as JSON:', parseError);
+                                            // If parsing fails, check if it's a valid error message
+                                            if (result.text.includes("error") || result.text.includes("sorry")) {
+                                                alert("Error: " + result.text);
+                                                setIsLoading(false);
+                                                return;
                                             }
+                                            // If not an error message, create a single task with the text as description
+                                            parsedText = {
+                                                tasks: [{
+                                                    name_of_the_task: "Learning Task",
+                                                    id: 1,
+                                                    description: result.text,
+                                                    dependencies: [],
+                                                    estimated_duration: 120
+                                                }]
+                                            };
                                         }
+                                    } else {
+                                        parsedText = result.text;
+                                    }
 
-                                        taskData[taskId] = {
-                                            name_of_the_task: task.name_of_the_task || 'Unnamed Task',
-                                            id: parseInt(taskId),
-                                            description: task.description || 'No description available',
-                                            dependencies: dependencies,
-                                            estimated_duration: task.estimated_duration || 0
-                                        };
-                                    });
+                                    console.log('Processed result text:', parsedText);
 
-                                    console.log('Created task data with dependencies:', taskData);
-                                    setRoadmapData(taskData);
-                                } else {
-                                    console.error('Invalid tasks data structure:', parsedText);
-                                    alert("Error: Invalid response format from server");
+                                    if (parsedText && parsedText.tasks && Array.isArray(parsedText.tasks)) {
+                                        const taskData: TasksData = {};
+                                        
+                                        // Create tasks with their dependencies from the response
+                                        parsedText.tasks.forEach((task: any, index: number) => {
+                                            const taskId = (task && typeof task.id !== 'undefined' ? task.id : index + 1).toString();
+                                            
+                                            // Convert dependencies to array
+                                            let dependencies: number[] = [];
+                                            if (task.dependencies) {
+                                                if (typeof task.dependencies === 'number') {
+                                                    // If it's a number, create a single-element array
+                                                    dependencies = [task.dependencies];
+                                                } else if (Array.isArray(task.dependencies)) {
+                                                    // If it's already an array, use it
+                                                    dependencies = task.dependencies;
+                                                }
+                                            }
+
+                                            taskData[taskId] = {
+                                                name_of_the_task: task.name_of_the_task || 'Unnamed Task',
+                                                id: parseInt(taskId),
+                                                description: task.description || 'No description available',
+                                                dependencies: dependencies,
+                                                estimated_duration: task.estimated_duration || 0
+                                            };
+                                        });
+
+                                        console.log('Created task data with dependencies:', taskData);
+                                        setRoadmapData(taskData);
+                                    } else {
+                                        console.error('Invalid tasks data structure:', parsedText);
+                                        alert("Error: Invalid response format from server");
+                                    }
+                                } catch (error) {
+                                    console.error('Error processing result data:', error);
+                                    alert("Error processing server response");
+                                } finally {
+                                    setIsLoading(false);
+                                    setPendingGoal("");
                                 }
-                            } catch (error) {
-                                console.error('Error processing result data:', error);
-                                alert("Error processing server response");
-                            } finally {
-                                setIsLoading(false);
-                                setPendingGoal("");
                             }
+                        } catch (error) {
+                            console.error('Error parsing WebSocket message:', error);
+                            setIsLoading(false);
                         }
-                    } catch (error) {
-                        console.error('Error parsing WebSocket message:', error);
-                        setIsLoading(false);
-                    }
-                };
+                    };
 
-                socketRef.current.send(JSON.stringify(message));
-            } catch (error) {
-                console.error('Error sending request:', error);
-                setIsLoading(false);
+                    socketRef.current.send(JSON.stringify(message));
+                } catch (error) {
+                    console.error('Error sending WebSocket request:', error);
+                    setIsLoading(false);
+                }
+            } else {
+                console.error('Neither API nor WebSocket available');
+                alert("Error: Could not connect to the server");
             }
-        } else {
-            console.error('WebSocket is not connected');
         }
     };
 

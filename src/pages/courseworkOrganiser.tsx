@@ -4,6 +4,7 @@ import Button from "../components/button.tsx";
 import DynamicRoadmap from "../components/roadmap.tsx";
 import { generateClient } from 'aws-amplify/data';
 import { type Schema } from '../../amplify/data/resource';
+import { addHours, format } from 'date-fns';
 
 const client = generateClient<Schema>();
 
@@ -45,6 +46,23 @@ interface StudentSkill {
     };
 }
 
+// Add these interfaces at the top with the other interfaces
+interface TaskAssignment {
+    task_id: string;
+    start_time: number;
+    task_name: string;
+    duration: number;
+    dependencies: string[];
+}
+
+interface StudentAssignment {
+    [key: string]: TaskAssignment;
+}
+
+interface AssignmentData {
+    [student: string]: StudentAssignment;
+}
+
 // Sample coursework list - you can replace this with your actual coursework data
 const COURSEWORK_LIST = [
     { id: 1, name: "Advance Programming Assignment" },   
@@ -82,185 +100,176 @@ const StudentAssignmentsTable = ({ assignments }: { assignments: StudentTasks })
     );
 };
 
+interface GanttChartProps {
+    data: AssignmentData;
+}
+
+const GanttChart: React.FC<GanttChartProps> = ({ data }) => {
+    // Calculate the total duration and earliest start time
+    const calculateTimeRange = () => {
+        let maxEndTime = 0;
+        let minStartTime = Infinity;
+        
+        Object.values(data).forEach(student => {
+            Object.values(student).forEach(task => {
+                const endTime = task.start_time + task.duration;
+                maxEndTime = Math.max(maxEndTime, endTime);
+                minStartTime = Math.min(minStartTime, task.start_time);
+            });
+        });
+        
+        return {
+            totalDuration: Math.ceil(maxEndTime),
+            minStartTime: Math.floor(minStartTime)
+        };
+    };
+
+    const { totalDuration, minStartTime } = calculateTimeRange();
+    const hourWidth = 60; // Width in pixels for each hour
+    
+    // Create hour markers for the timeline
+    const hourMarkers = Array.from({ length: totalDuration + 1 }, (_, i) => i + minStartTime);
+
+    const getPositionStyle = (startTime: number, duration: number) => {
+        const left = (startTime - minStartTime) * hourWidth;
+        const width = duration * hourWidth;
+        
+        return {
+            left: `${left}px`,
+            width: `${width}px`
+        };
+    };
+
+    return (
+        <div className="overflow-x-auto">
+            <div style={{ 
+                minWidth: `${(totalDuration + 1) * hourWidth + 200}px`,
+                paddingBottom: '20px'
+            }}>
+                {/* Timeline header */}
+                <div className="flex border-b mb-2 sticky top-0 bg-white">
+                    <div className="w-48 flex-shrink-0 font-medium p-2">Student</div>
+                    <div className="flex-grow flex" style={{ marginLeft: '-1px' }}>
+                        {hourMarkers.map((hour) => (
+                            <div 
+                                key={hour} 
+                                className="flex-shrink-0 text-xs text-center border-l"
+                                style={{ width: `${hourWidth}px` }}
+                            >
+                                Hour {hour}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Tasks */}
+                {Object.entries(data).map(([student, tasks]) => (
+                    <div key={student} className="flex mb-4 hover:bg-gray-50">
+                        <div className="w-48 flex-shrink-0 font-medium p-2">{student}</div>
+                        <div className="flex-grow relative" style={{ height: '40px' }}>
+                            {Object.values(tasks).map((task) => {
+                                const posStyle = getPositionStyle(task.start_time, task.duration);
+                                return (
+                                    <div
+                                        key={task.task_id}
+                                        className="absolute h-8 rounded shadow-sm transition-opacity hover:opacity-90"
+                                        style={{
+                                            ...posStyle,
+                                            backgroundColor: `hsl(${parseInt(task.task_id.slice(1)) * 37 % 360}, 70%, 80%)`,
+                                            border: '1px solid rgba(0,0,0,0.1)',
+                                            top: '4px',
+                                        }}
+                                        title={`${task.task_name}
+Start: Hour ${task.start_time.toFixed(1)}
+Duration: ${task.duration} hours
+Dependencies: ${task.dependencies.join(', ') || 'None'}`}
+                                    >
+                                        <div className="text-xs truncate px-2" style={{ lineHeight: '30px' }}>
+                                            {task.task_name}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {/* Grid lines */}
+                            <div className="absolute inset-0 grid" style={{
+                                gridTemplateColumns: `repeat(${totalDuration + 1}, ${hourWidth}px)`,
+                                pointerEvents: 'none'
+                            }}>
+                                {hourMarkers.map(hour => (
+                                    <div key={hour} className="border-l border-gray-200"></div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+            
+            {/* Legend */}
+            <div className="mt-4 text-xs text-gray-600">
+                * Hover over tasks to see full details including start time, duration, and dependencies
+            </div>
+        </div>
+    );
+};
+
 function CourseworkOrganiser() {
     const [selectedCoursework, setSelectedCoursework] = useState<string>("");
     const [isLoading, setIsLoading] = useState(false);
     const [roadmapData, setRoadmapData] = useState<TasksData | null>(null);
-    const [isConnected, setIsConnected] = useState(false);
-    const socketRef = useRef<WebSocket | null>(null);
-    const reconnectTimeoutRef = useRef<number>();
-    const isMountedRef = useRef(false);
     const [studentAssignments, setStudentAssignments] = useState<StudentTasks | null>(null);
     const [numberOfStudents, setNumberOfStudents] = useState<number>(0);
     const [studentSkills, setStudentSkills] = useState<StudentSkill[]>([]);
     const [isNameModalOpen, setIsNameModalOpen] = useState(false);
     const [newStudentName, setNewStudentName] = useState("");
     const [isLoadingData, setIsLoadingData] = useState(true);
-
-    const setupWebSocket = useCallback(() => {
-        if (!isMountedRef.current) return null;
-
-        if (socketRef.current) {
-            socketRef.current.close();
-            socketRef.current = null;
-        }
-
-        if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current);
-        }
-
-        try {
-            const ws = new WebSocket("wss://1e2wwsnu5d.execute-api.eu-west-2.amazonaws.com/production/");
-
-            ws.onopen = () => {
-                if (isMountedRef.current) {
-                    console.log('WebSocket Connected');
-                    setIsConnected(true);
-                }
-            };
-
-            ws.onclose = () => {
-                if (isMountedRef.current) {
-                    console.log('WebSocket Disconnected');
-                    setIsConnected(false);
-                    socketRef.current = null;
-
-                    reconnectTimeoutRef.current = window.setTimeout(() => {
-                        if (isMountedRef.current) {
-                            console.log('Attempting to reconnect...');
-                            setupWebSocket();
-                        }
-                    }, 3000);
-                }
-            };
-
-            ws.onerror = (error) => {
-                if (isMountedRef.current) {
-                    console.log('WebSocket Error:', error);
-                }
-            };
-
-            socketRef.current = ws;
-            return ws;
-        } catch (error) {
-            if (isMountedRef.current) {
-                console.error('Error creating WebSocket:', error);
-            }
-            return null;
-        }
-    }, []);
-
-    useEffect(() => {
-        isMountedRef.current = true;
-        
-        const initTimeout = setTimeout(() => {
-            if (isMountedRef.current) {
-                setupWebSocket();
-            }
-        }, 100);
-
-        return () => {
-            isMountedRef.current = false;
-            clearTimeout(initTimeout);
-            
-            if (reconnectTimeoutRef.current) {
-                clearTimeout(reconnectTimeoutRef.current);
-            }
-            if (socketRef.current) {
-                socketRef.current.close();
-                socketRef.current = null;
-            }
-        };
-    }, [setupWebSocket]);
+    const [assignmentData, setAssignmentData] = useState<AssignmentData | null>(null);
 
     const handleGenerateRoadmap = async () => {
-        if (!selectedCoursework || !socketRef.current || !isConnected || isLoading) return;
+        if (!selectedCoursework || isLoading) return;
         setIsLoading(true);
 
-        const message = {
-            "action": "startTask",
-            "body": JSON.stringify({
-                message: "run the algorithm",
-                numberOfStudents: numberOfStudents,
-                studentSkills: studentSkills
-            })
-        };
-        
-        // Log the final message string that will be sent to WebSocket
-        const messageString = JSON.stringify(message);
-        console.log("Raw message to be sent:", messageString);
-
         try {
-            socketRef.current.onmessage = (event) => {
-                try {
-                    console.log('Raw WebSocket response:', event.data);  // Log raw response
-                    const data = JSON.parse(event.data);
-                    console.log('Parsed WebSocket message:', data);
+            console.log('Attempting to connect to server');
+            const response = await fetch('http://localhost:1865/message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: "run the algorithm"
+                })
+            }).catch(error => {
+                console.error('Network error:', error);
+                throw new Error(`Failed to connect to server: ${error.message}`);
+            });
 
-                    if (data.status === "processing" && data.message === "Task started!") {
-                        console.log('Task started, waiting for results...');
-                        return;
-                    }
+            if (!response) {
+                throw new Error('No response received from server');
+            }
 
-                    if (data.status === "complete" && data.result) {
-                        const result = data.result;
-                        if (!result?.text) {
-                            console.log('No result text in response');
-                            setIsLoading(false);
-                            return;
-                        }
+            const rawData = await response.text();
+            console.log('Raw response data:', rawData);
 
-                        try {
-                            if (typeof result.text === 'string' && result.text.includes("cannot assist")) {
-                                console.log('Received error message from server:', result.text);
-                                alert("Error: " + result.text);
-                                setIsLoading(false);
-                                return;
-                            }
-
-                            const parsedText = JSON.parse(result.text);
-                            console.log('Parsed result text:', parsedText);
-
-                            // Check if the response is student assignments
-                            if (parsedText && typeof parsedText === 'object' && 'S1' in parsedText) {
-                                setStudentAssignments(parsedText);
-                                setIsLoading(false);
-                                return;
-                            }
-
-                            if (parsedText && parsedText.tasks && Array.isArray(parsedText.tasks)) {
-                                const taskData: TasksData = {};
-                                
-                                parsedText.tasks.forEach((task: any, index: number) => {
-                                    const taskId = (task && typeof task.id !== 'undefined' ? task.id : index + 1).toString();
-                                    taskData[taskId] = {
-                                        name_of_the_task: task.name_of_the_task || 'Unnamed Task',
-                                        id: parseInt(taskId),
-                                        description: task.description || 'No description available',
-                                        dependencies: Array.isArray(task.dependencies) ? task.dependencies : [],
-                                        estimated_duration: task.estimated_duration || 0
-                                    };
-                                });
-
-                                setRoadmapData(taskData);
-                            } else {
-                                console.error('Invalid tasks data structure:', parsedText);
-                            }
-                        } catch (error) {
-                            console.error('Error processing result data:', error);
-                        } finally {
-                            setIsLoading(false);
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error parsing WebSocket message:', error);
-                    setIsLoading(false);
+            let data;
+            try {
+                data = JSON.parse(rawData);
+                if (data.content) {
+                    data = JSON.parse(data.content);
+                } else if (data.text) {
+                    data = JSON.parse(data.text);
                 }
-            };
-
-            socketRef.current.send(JSON.stringify(message));
+                console.log('Parsed assignment data:', data);
+                setAssignmentData(data);
+            } catch (error) {
+                console.error('Error parsing response:', error);
+                throw new Error('Invalid response format');
+            }
+            
         } catch (error) {
-            console.error('Error sending request:', error);
+            console.error('Error making API request:', error);
+            alert('Failed to generate schedule. Please try again.');
+        } finally {
             setIsLoading(false);
         }
     };
@@ -468,158 +477,165 @@ function CourseworkOrganiser() {
                 <Title text="Coursework Organizer" size="lg" />
             </div>
 
-            <main className="flex-1 max-w-4xl mx-auto px-4 py-8 w-full mb-20">
-                <div className="bg-white rounded-xl shadow-sm p-6 space-y-8">
-                    {isLoadingData ? (
-                        <div className="flex justify-center items-center py-8">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            <h2 className="text-xl font-semibold text-gray-800">Select Your Coursework</h2>
-                            <select
-                                value={selectedCoursework}
-                                onChange={(e) => setSelectedCoursework(e.target.value)}
-                                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            >
-                                <option value="">Select a coursework...</option>
-                                {COURSEWORK_LIST.map((coursework) => (
-                                    <option key={coursework.id} value={coursework.name}>
-                                        {coursework.name}
-                                    </option>
-                                ))}
-                            </select>
-
-                            <div className="space-y-4 mt-6">
-                                <div className="flex justify-between items-center">
-                                    <h3 className="text-lg font-semibold text-gray-800">Students</h3>
-                                    <button
-                                        onClick={addStudent}
-                                        disabled={numberOfStudents >= 10}
-                                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                                    >
-                                        Add Student
-                                    </button>
-                                </div>
+            <main className="flex-1 max-w-7xl mx-auto px-4 py-8 w-full mb-20">
+                <div className="space-y-8">
+                    {/* Student Management Section */}
+                    <div className="bg-white rounded-xl shadow-sm p-6 space-y-8">
+                        {isLoadingData ? (
+                            <div className="flex justify-center items-center py-8">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
                             </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <h2 className="text-xl font-semibold text-gray-800">Select Your Coursework</h2>
+                                <select
+                                    value={selectedCoursework}
+                                    onChange={(e) => setSelectedCoursework(e.target.value)}
+                                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                >
+                                    <option value="">Select a coursework...</option>
+                                    {COURSEWORK_LIST.map((coursework) => (
+                                        <option key={coursework.id} value={coursework.name}>
+                                            {coursework.name}
+                                        </option>
+                                    ))}
+                                </select>
 
-                            {numberOfStudents > 0 && (
-                                <div className="space-y-6 mt-6">
-                                    <h3 className="text-lg font-semibold text-gray-800">Student Skills Self-Evaluation</h3>
-                                    <p className="text-sm text-gray-600">Rate each skill from 0 to 1 (0 = No experience, 1 = Expert)</p>
-                                    {studentSkills.map((student, studentIndex) => (
-                                        <div key={student.studentId} className="relative space-y-4 p-6 border rounded-lg bg-gray-50">
-                                            <div className="flex justify-between items-center">
-                                                <div>
-                                                    <h4 className="font-medium text-lg">{student.name}</h4>
-                                                    <p className="text-sm text-gray-500">Student {studentIndex + 1}</p>
+                                <div className="space-y-4 mt-6">
+                                    <div className="flex justify-between items-center">
+                                        <h3 className="text-lg font-semibold text-gray-800">Students</h3>
+                                        <button
+                                            onClick={addStudent}
+                                            disabled={numberOfStudents >= 10}
+                                            className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                                        >
+                                            Add Student
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {numberOfStudents > 0 && (
+                                    <div className="space-y-6 mt-6">
+                                        <h3 className="text-lg font-semibold text-gray-800">Student Skills Self-Evaluation</h3>
+                                        <p className="text-sm text-gray-600">Rate each skill from 0 to 1 (0 = No experience, 1 = Expert)</p>
+                                        {studentSkills.map((student, studentIndex) => (
+                                            <div key={student.studentId} className="relative space-y-4 p-6 border rounded-lg bg-gray-50">
+                                                <div className="flex justify-between items-center">
+                                                    <div>
+                                                        <h4 className="font-medium text-lg">{student.name}</h4>
+                                                        <p className="text-sm text-gray-500">Student {studentIndex + 1}</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => removeStudent(studentIndex)}
+                                                        disabled={numberOfStudents <= 1}
+                                                        className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                                                    >
+                                                        Remove
+                                                    </button>
                                                 </div>
-                                                <button
-                                                    onClick={() => removeStudent(studentIndex)}
-                                                    disabled={numberOfStudents <= 1}
-                                                    className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                                                >
-                                                    Remove
-                                                </button>
-                                            </div>
-                                            <div className="grid gap-4">
-                                                <div key={`${student.studentId}-cognitivePower`} className="space-y-2">
-                                                    <label className="flex justify-between">
-                                                        <span className="capitalize">Cognitive Power</span>
-                                                        <span className="text-gray-500">{Math.round(student.cognitivePower * 100)}%</span>
-                                                    </label>
-                                                    <input
-                                                        type="range"
-                                                        min="0"
-                                                        max="1"
-                                                        step="0.1"
-                                                        value={student.cognitivePower}
-                                                        onChange={(e) => handleSkillChange(
-                                                            student.studentId,
-                                                            'cognitivePower',
-                                                            parseFloat(e.target.value)
-                                                        )}
-                                                        className="w-full"
-                                                    />
-                                                </div>
-                                                <div key={`${student.studentId}-availableHours`} className="space-y-2">
-                                                    <label className="flex justify-between">
-                                                        <span className="capitalize">Available Hours per Week</span>
-                                                        <span className="text-gray-500">{student.availableHours} hours</span>
-                                                    </label>
-                                                    <input
-                                                        type="range"
-                                                        min="0"
-                                                        max="40"
-                                                        step="1"
-                                                        value={student.availableHours}
-                                                        onChange={(e) => handleSkillChange(
-                                                            student.studentId,
-                                                            'availableHours',
-                                                            parseFloat(e.target.value)
-                                                        )}
-                                                        className="w-full"
-                                                    />
-                                                </div>
-                                                {Object.entries(student.skills).map(([skillName, value]) => (
-                                                    <div key={`${student.studentId}-${skillName}`} className="space-y-2">
+                                                <div className="grid gap-4">
+                                                    <div key={`${student.studentId}-cognitivePower`} className="space-y-2">
                                                         <label className="flex justify-between">
-                                                            <span className="capitalize">{skillName}</span>
-                                                            <span className="text-gray-500">{Math.round(value * 100)}%</span>
+                                                            <span className="capitalize">Cognitive Power</span>
+                                                            <span className="text-gray-500">{Math.round(student.cognitivePower * 100)}%</span>
                                                         </label>
                                                         <input
                                                             type="range"
                                                             min="0"
                                                             max="1"
                                                             step="0.1"
-                                                            value={value}
+                                                            value={student.cognitivePower}
                                                             onChange={(e) => handleSkillChange(
                                                                 student.studentId,
-                                                                skillName,
+                                                                'cognitivePower',
                                                                 parseFloat(e.target.value)
                                                             )}
                                                             className="w-full"
                                                         />
                                                     </div>
-                                                ))}
+                                                    <div key={`${student.studentId}-availableHours`} className="space-y-2">
+                                                        <label className="flex justify-between">
+                                                            <span className="capitalize">Available Hours per Week</span>
+                                                            <span className="text-gray-500">{student.availableHours} hours</span>
+                                                        </label>
+                                                        <input
+                                                            type="range"
+                                                            min="0"
+                                                            max="40"
+                                                            step="1"
+                                                            value={student.availableHours}
+                                                            onChange={(e) => handleSkillChange(
+                                                                student.studentId,
+                                                                'availableHours',
+                                                                parseFloat(e.target.value)
+                                                            )}
+                                                            className="w-full"
+                                                        />
+                                                    </div>
+                                                    {Object.entries(student.skills).map(([skillName, value]) => (
+                                                        <div key={`${student.studentId}-${skillName}`} className="space-y-2">
+                                                            <label className="flex justify-between">
+                                                                <span className="capitalize">{skillName}</span>
+                                                                <span className="text-gray-500">{Math.round(value * 100)}%</span>
+                                                            </label>
+                                                            <input
+                                                                type="range"
+                                                                min="0"
+                                                                max="1"
+                                                                step="0.1"
+                                                                value={value}
+                                                                onChange={(e) => handleSkillChange(
+                                                                    student.studentId,
+                                                                    skillName,
+                                                                    parseFloat(e.target.value)
+                                                                )}
+                                                                className="w-full"
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <div className="mt-6 flex justify-end space-x-3">
+                                                    <button
+                                                        onClick={() => handleSaveStudentData(student)}
+                                                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
+                                                    >
+                                                        Save
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteStudentData(student)}
+                                                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <div className="mt-6 flex justify-end space-x-3">
-                                                <button
-                                                    onClick={() => handleSaveStudentData(student)}
-                                                    className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                                                >
-                                                    Save
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDeleteStudentData(student)}
-                                                    className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            
-                            <Button
-                                label={!isConnected ? "Connecting..." : isLoading ? "Generating schedule..." : "Generate schedule"}
-                                onClick={handleGenerateRoadmap}
-                                disabled={!isConnected || isLoading || !selectedCoursework || numberOfStudents === 0}
-                            />
-                        </div>
-                    )}
+                                        ))}
+                                    </div>
+                                )}
+                                
+                                <Button
+                                    label={isLoading ? "Generating schedule..." : "Generate schedule"}
+                                    onClick={handleGenerateRoadmap}
+                                    disabled={isLoading || !selectedCoursework || numberOfStudents === 0}
+                                />
+                            </div>
+                        )}
 
-                    {studentAssignments && (
-                        <div className="space-y-4">
-                            <h2 className="text-xl font-semibold text-gray-800">Student Task Assignments</h2>
-                            <StudentAssignmentsTable assignments={studentAssignments} />
-                        </div>
-                    )}
-
-                    <div className="space-y-8">
-                        {roadmapData && <DynamicRoadmap tasksData={roadmapData} />}
+                        {studentAssignments && (
+                            <div className="space-y-4">
+                                <h2 className="text-xl font-semibold text-gray-800">Student Task Assignments</h2>
+                                <StudentAssignmentsTable assignments={studentAssignments} />
+                            </div>
+                        )}
                     </div>
+
+                    {/* Gantt Chart Section */}
+                    {assignmentData && (
+                        <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
+                            <h2 className="text-xl font-semibold text-gray-800">Task Assignment Schedule</h2>
+                            <GanttChart data={assignmentData} />
+                        </div>
+                    )}
                 </div>
             </main>
 
